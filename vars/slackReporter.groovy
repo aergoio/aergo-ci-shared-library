@@ -1,16 +1,23 @@
 #!/usr/bin/env groovy
 
-def call(String buildResult) {
-  if ( buildResult == "SUCCESS" ) {
-    slackSend color: "good", message: "Job: ${env.JOB_NAME} with buildnumber ${env.BUILD_NUMBER} was successful"
+import hudson.tasks.test.AbstractTestResultAction
+
+@NonCPS
+def call(def currentBuild, def channel='') {
+  def buildResult = currentBuild.currentResult
+  def COLOR_MAP = ['SUCCESS': 'good', 'UNSTABLE': 'warning', 'FAILURE': 'danger', 'ABORTED': 'danger']
+  def msg = "<${env.JOB_URL}|${env.JOB_NAME}> - Build <${env.BUILD_URL}|#${env.BUILD_NUMBER}>: ${buildResult}"
+  AbstractTestResultAction testResults =  currentBuild.rawBuild.getAction(AbstractTestResultAction.class)
+  if (testResults != null) {
+    def total = testResults.totalCount
+    def failed = testResults.failCount
+    def skipped = testResults.skipCount
+    def passed = total - failed - skipped
+    msg += "\n  Test Status: Total ${total}, Passed ${passed}, Failed ${failed}, Skipped ${skipped}"
   }
-  else if( buildResult == "FAILURE" ) { 
-    slackSend color: "danger", message: "Job: ${env.JOB_NAME} with buildnumber ${env.BUILD_NUMBER} was failed"
-  }
-  else if( buildResult == "UNSTABLE" ) { 
-    slackSend color: "warning", message: "Job: ${env.JOB_NAME} with buildnumber ${env.BUILD_NUMBER} was unstable"
-  }
-  else {
-    slackSend color: "danger", message: "Job: ${env.JOB_NAME} with buildnumber ${env.BUILD_NUMBER} its resulat was unclear"	
+  if (channel != '') {
+    slackSend message: msg, color: COLOR_MAP[buildResult], channel: channel
+  } else {
+    slackSend message: msg, color: COLOR_MAP[buildResult]
   }
 }

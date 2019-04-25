@@ -3,7 +3,7 @@
 import hudson.tasks.test.AbstractTestResultAction
 
 @NonCPS
-def call(def currentBuild, def channel='') {
+def call(def currentBuild) {
   def buildResult = currentBuild.result
   if (!buildResult) {
     buildResult = currentBuild.currentResult
@@ -19,9 +19,5 @@ def call(def currentBuild, def channel='') {
     def passed = total - failed - skipped
     msg += "\n  Test Status: Total ${total}, Passed ${passed}, Failed ${failed}, Skipped ${skipped}"
   }
-  if (!channel) {
-    slackSend message: msg, color: color
-  } else {
-    slackSend message: msg, color: color, channel: channel
-  }
+  return slackSend(message: msg, color: color)
 }

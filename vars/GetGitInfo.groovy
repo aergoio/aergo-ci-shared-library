@@ -16,9 +16,8 @@ def call() {
 		link += "/commit/" + rev
 		msg = "<${link}|${rev}>"
 	}
-  if (ref != rev) {
+  	if (ref != rev) {
 	  msg += " ${ref}"
 	}
-	msg = "(" + msg + ")"
 	return JsonOutput.toJson([msg: msg, rev: rev, ref: ref, url: url, link: link])
 }

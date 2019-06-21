@@ -1,52 +1,69 @@
 #!/usr/bin/env groovy
 
-import groovy.json.JsonSlurper
+import groovy.json.JsonSlurperClassic
 import hudson.tasks.test.AbstractTestResultAction
+
 
 def call(def args) {
   def msg = args.msg ?: ""
   def color = args.color ?: ""
   def channel = args.channel ?: ""
 
-  // buildMsg
+  // fetch arguments
+  def buildMsg
+  def testResultMsg
   if (args.currentBuild) {
-    def buildMsg = getBuildMsg(args.currentBuild)
-    if (buildMsg) {
-      msg = buildMsg.msg
-      color = buildMsg.color
-    }
+    buildMsg = getBuildMsg(args.currentBuild)
+    testResultMsg = getTestResult(args.currentBuild)
   }
-
-  // gitInfo
-  if (args.gitInfo) {
-    def gitInfo = parseJson(args.gitInfo)
-    if (gitInfo) {
-      msg += " ${gitInfo.msg}"
-    }
+  if (args.buildGit) {
+    buildMsg["git"] = parseJson(args.buildGit)
   }
-
-  // testResult
-  if (args.currentBuild) {
-    def testResult = getTestResult(args.currentBuild)
-    if (testResult) {
-      msg += "\n  ${testResult.msg}"
-      // testsetInfo
-      if (args.testsetInfo) {
-        def testsetInfo = parseJson(args.testsetInfo)
-        if (testsetInfo) {
-          msg += " ${testsetInfo.msg}"
-        }
+  if (args.testResultGit) {
+    testResultMsg["git"] = parseJson(args.testResultGit)
+  }
+  def verifierResultMsg = []
+  if (args.verifierResult) {
+    print "args.verifierResult: ${args.verifierResult}"
+    for (entry in args.verifierResult) {
+      print "entry: ${entry.key}: ${entry.value}"
+      def buf = getVerifierResultMsg(entry.key, entry.value)
+      if (buf) {
+        verifierResultMsg.add(buf)
       }
     }
   }
 
+  // buildMsg
+  if (buildMsg) {
+    color = buildMsg.color
+    msg += msg ? "\n    " : ""
+    msg += buildMsg.msg
+    msg += buildMsg.git ? " (${buildMsg.git.msg})" : ""
+  }
+
+  // testResultMsg
+  if (testResultMsg) {
+    msg += msg ? "\n    " : ""
+    msg += testResultMsg.msg
+    msg += testResultMsg.git ? " (${testResultMsg.git.msg})" : ""
+  }
+
+  // verifierResultMsg
+  if (verifierResultMsg) {
+    for (entry in verifierResultMsg) {
+      msg += msg ? "\n    " : ""
+      msg += entry.msg
+    }
+  }
+
   // slackSend
-  return slackSend(message: msg, color: color, channel: channel)
+  slackSend(message: msg, color: color, channel: channel)
 }
 
 
 def parseJson(txt) {
-  return new JsonSlurper().parseText(txt)
+  return new JsonSlurperClassic().parseText(txt)
 }
 
 
@@ -89,4 +106,13 @@ def getTestResult(def currentBuild) {
   def passed = total - failed - skipped
   def msg = "Test Status: Total ${total}, Passed ${passed}, Failed ${failed}, Skipped ${skipped}"
   return [msg: msg, total: total, failed: failed, skipped: skipped, passed: passed]
+}
+
+def getVerifierResultMsg(def targetName, def res) {
+  if (!res.verify) {
+    return [:]
+  }
+  def summary = res.verifyErr ?: res.verify
+  def msg = "${targetName} (${res.verifyCurNo}/${res.verifyBestNo}): ${summary}"
+  return [msg: msg, target: targetName, verify: res.verify, bestBlockNo: res.verifyBestNo, currBlockNo: res.verifyCurNo, err: res.verifyErr]
 }
